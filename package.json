@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Bot to monitor user interactions with dashboard",
   "main": "monitorIndex.js",
+  "engines": {
+    "node": "18.x",
+    "npm": "8.x"
+  },
   "scripts": {
     "build": "npm install --ignore-scripts",
     "start": "node monitorIndex.js",
