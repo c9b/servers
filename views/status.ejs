@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>حالة البوت - البوت المراقب</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>حالة البوت المراقب</h1>
+            <div class="user-actions">
+                <a href="/dashboard" class="back-btn">← الرجوع</a>
+                <form method="POST" action="/logout">
+                    <button type="submit" class="logout-btn">تسجيل الخروج</button>
+                </form>
+            </div>
+        </header>
+
+        <section class="status-section">
+            <h2>معلومات النظام</h2>
+            <div class="status-cards">
+                <div class="status-card <%= botStatus.isRunning ? 'running' : 'stopped' %>">
+                    <h3>حالة البوت</h3>
+                    <p><%= botStatus.isRunning ? '🟢 يعمل' : '🔴 متوقف' %></p>
+                    <p><strong>اسم البوت:</strong> <%= botStatus.botName %></p>
+                </div>
+                
+                <div class="status-card">
+                    <h3>الإحصاءات</h3>
+                    <p><strong>عدد المستخدمين:</strong> <%= botStatus.userCount %></p>
+                    <p><strong>المجموعة:</strong> <%= botStatus.groupId || 'غير محدد' %></p>
+                </div>
+                
+                <div class="status-card">
+                    <h3>معلومات الخادم</h3>
+                    <p><strong>البورت:</strong> <%= process.env.MONITOR_PORT || 3001 %></p>
+                    <p><strong>الوقت:</strong> <span id="current-time"><%= new Date().toLocaleString('ar-SA') %></span></p>
+                </div>
+            </div>
+        </section>
+
+        <section class="api-section">
+            <h2>واجهة البرمجة (API)</h2>
+            <div class="api-endpoints">
+                <div class="api-endpoint">
+                    <h3>GET /api/users</h3>
+                    <p>جلب جميع المستخدمين المتفاعلين</p>
+                    <code><a href="/api/users" target="_blank">/api/users</a></code>
+                </div>
+                
+                <div class="api-endpoint">
+                    <h3>GET /api/status</h3>
+                    <p>جلب حالة البوت</p>
+                    <code><a href="/api/status" target="_blank">/api/status</a></code>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // تحديث الوقت تلقائياً
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = now.toLocaleString('ar-SA');
+        }
+        
+        setInterval(updateTime, 1000);
+        updateTime();
+    </script>
+</body>
+</html>
