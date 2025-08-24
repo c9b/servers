@@ -4,6 +4,7 @@
   "description": "Bot to monitor user interactions with dashboard",
   "main": "monitorIndex.js",
   "scripts": {
+    "build": "npm install --ignore-scripts",
     "start": "node monitorIndex.js",
     "dev": "nodemon monitorIndex.js"
   },
