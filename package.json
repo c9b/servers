@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "dotenv": "^17.2.1",
+    "express": "^5.1.0",
     "node-pre-gyp": "^0.17.0",
     "wolf.js": "^1.9.4"
   }
