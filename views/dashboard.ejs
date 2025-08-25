@@ -1,109 +1,0 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوحة التحكم - البوت المراقب</title>
-    <link rel="stylesheet" href="/css/style.css">
-</head>
-<body>
-    <div class="container">
-        <header>
-            <h1>البوت المراقب - لوحة التحكم</h1>
-            <div class="user-actions">
-                <form method="POST" action="/logout">
-                    <button type="submit" class="logout-btn">تسجيل الخروج</button>
-                </form>
-            </div>
-        </header>
-
-        <% if (success) { %>
-            <div class="success-message"><%= success %></div>
-        <% } %>
-        
-        <% if (error) { %>
-            <div class="error-message"><%= error %></div>
-        <% } %>
-
-        <!-- معلومات البوت -->
-        <section class="bot-info">
-            <h2>معلومات البوت</h2>
-            <div class="info-cards">
-                <div class="info-card <%= botStatus.isRunning ? 'running' : 'stopped' %>">
-                    <h3>حالة البوت</h3>
-                    <p><%= botStatus.isRunning ? '🟢 يعمل' : '🔴 متوقف' %></p>
-                    <p><%= botStatus.botName %></p>
-                </div>
-                
-                <div class="info-card">
-                    <h3>المستخدمين</h3>
-                    <p class="big-number"><%= botStatus.userCount %></p>
-                    <p>مستخدم متفاعل</p>
-                </div>
-                
-                <div class="info-card">
-                    <h3>المجموعة</h3>
-                    <p><%= groupId || 'غير محدد' %></p>
-                </div>
-            </div>
-        </section>
-
-        <!-- تحكم البوت -->
-        <section class="control-section">
-            <h2>التحكم بالبوت</h2>
-            <div class="control-buttons">
-                <% if (!botStatus.isRunning) { %>
-                    <form method="POST" action="/start">
-                        <button type="submit" class="start-btn">▶️ تشغيل البوت</button>
-                    </form>
-                <% } else { %>
-                    <form method="POST" action="/stop">
-                        <button type="submit" class="stop-btn">⏹️ إيقاف البوت</button>
-                    </form>
-                <% } %>
-                
-                <form method="POST" action="/clear">
-                    <button type="submit" class="clear-btn">🧹 مسح المستخدمين</button>
-                </form>
-                
-                <a href="/status" class="status-btn">📊 عرض الحالة</a>
-            </div>
-        </section>
-
-        <!-- المستخدمين -->
-        <section class="users-section">
-            <h2>المستخدمين المتفاعلين (<%= botStatus.userCount %>)</h2>
-            
-            <% if (users.length > 0) { %>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>الاسم</th>
-                                <th>آخر رسالة</th>
-                                <th>آخر تفاعل</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <% users.forEach(user => { %>
-                                <tr>
-                                    <td><%= user.subscriberId %></td>
-                                    <td><%= user.nickname %></td>
-                                    <td class="message-preview"><%= user.lastMessage %></td>
-                                    <td><%= new Date(user.timestamp).toLocaleString('ar-SA') %></td>
-                                </tr>
-                            <% }) %>
-                        </tbody>
-                    </table>
-                </div>
-            <% } else { %>
-                <div class="empty-state">
-                    <p>📝 لا يوجد مستخدمين متفاعلين حتى الآن</p>
-                    <p>قم بتشغيل البوت وابدأ التفاعل في المجموعات</p>
-                </div>
-            <% } %>
-        </section>
-    </div>
-</body>
-</html>

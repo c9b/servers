@@ -1,26 +1,13 @@
 {
-  "name": "monitor-bot",
+  "name": "wolf-game-bot",
   "version": "1.0.0",
-  "description": "Bot to monitor user interactions with dashboard",
-  "main": "monitorIndex.js",
-  "engines": {
-    "node": "18.x",
-    "npm": "8.x"
-  },
+  "description": "لعبة التنقيط في ولف",
+  "main": "index.js",
   "scripts": {
-    "build": "npm install --ignore-scripts",
-    "start": "node monitorIndex.js",
-    "dev": "nodemon monitorIndex.js"
+    "start": "node index.js"
   },
   "dependencies": {
-    "wolf.js": "^1.9.4",
-    "express": "^4.18.2",
-    "ejs": "^3.1.9",
-    "express-session": "^1.17.3",
-    "body-parser": "^1.20.2",
-    "dotenv": "^16.0.3"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
+    "dotenv": "^17.2.1",
+    "wolf.js": "^1.9.4"
   }
 }
