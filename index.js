@@ -97,7 +97,6 @@ function startGame(groupId) {
 
     let resultMsg = `⏰ انتهت الجولة! الكلمة: ${word}\n`;
 
-    // ترتيب اللاعبين بحيث يظهر أول correct أولاً
     const sortedPlayers = [...game.players.entries()]
       .sort((a, b) => {
         if (a[0] === game.firstCorrect) return -1;
@@ -105,7 +104,10 @@ function startGame(groupId) {
         return 0;
       });
 
+    let someoneScored = false;
+
     for (const [userId, points] of sortedPlayers) {
+      if (points > 0) someoneScored = true; // تحقق من وجود إجابة صحيحة
       await addPoints("نقطة", userId, groupId, points);
 
       let user;
@@ -116,12 +118,15 @@ function startGame(groupId) {
       resultMsg += `${safeName}: ${points} نقطة\n`;
     }
 
-    if (resultMsg.trim()) {
-      try {
-        api.messaging().sendGroupMessage(groupId, resultMsg + "🎉");
-      } catch (err) {
-        console.error("حدث خطأ أثناء إرسال نتائج الجولة:", err);
-      }
+    try {
+      await api.messaging().sendGroupMessage(groupId, resultMsg + "🎉");
+    } catch (err) {
+      console.error("حدث خطأ أثناء إرسال نتائج الجولة:", err);
+    }
+
+    // إذا كان هناك إجابة صحيحة، بدء الجولة التالية تلقائيًا
+    if (someoneScored) {
+      setTimeout(() => startGame(groupId), 2000); // 2 ثواني قبل الجولة التالية
     }
   }, 10000);
 }
@@ -174,7 +179,7 @@ api.on("groupMessage", async (msg) => {
       const points = (game.firstCorrect === userId) ? 2 : 1;
       game.players.set(userId, points);
     } else {
-      // تسجيل مشاركة خاطئة (يمكن حذف هذا إذا لا تريد تسجيل الخاطئين)
+      // تسجيل مشاركة خاطئة
       if (!game.players.has(userId)) game.players.set(userId, 0);
     }
   }
