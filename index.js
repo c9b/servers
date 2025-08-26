@@ -9,7 +9,7 @@ function arabicToEnglishNums(str) {
   return str.replace(/[٠-٩]/g, d => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)]);
 }
 
-// دالة تشيل الفروقات (همزات/تا مربوطة...) لتسهيل المقارنة
+// دالة تشيل الفروقات لتسهيل المقارنة
 function normalizeWord(str) {
   return arabicToEnglishNums(
     (str || "")
@@ -56,13 +56,9 @@ class Game {
     const i = Math.floor(Math.random() * this.remainingWords.length);
     return this.remainingWords.splice(i, 1)[0];
   }
-
-  resetAnswers() {
-    if (this.currentGame) this.currentGame.answers = [];
-  }
 }
 
-// مدير الألعاب (لكل جروب)
+// مدير الألعاب لكل جروب
 class GameManager {
   constructor() {
     this.games = new Map();
@@ -81,38 +77,58 @@ api.on("ready", () => console.log("✅ Noqta Bot جاهز"));
 // بدء جولة
 function startGame(groupId) {
   const gameData = gameManager.getGame(groupId);
+
+  // إذا كانت هناك جولة نشطة، لا تبدأ جولة جديدة
+  if (gameData.currentGame && gameData.currentGame.active) return;
+
+  if (gameData.currentGame && gameData.currentGame.timeout) {
+    clearTimeout(gameData.currentGame.timeout);
+  }
+
   const word = gameData.getRandomWord();
-  gameData.currentGame = { word, active: true, answers: [] };
+  gameData.currentGame = { word, active: true, answers: [], timeout: null };
 
   // مؤقت انتهاء الجولة
   gameData.currentGame.timeout = setTimeout(async () => {
     const answers = gameData.currentGame.answers;
     const hasCorrect = answers.some(a => a.correct);
 
+    // إيقاف الجولة الحالية
+    gameData.currentGame.active = false;
+
     if (hasCorrect) {
-      // توزيع نقاط لمن أخطأ
+      // توزيع النقاط
+      let firstCorrectGiven = false;
+      const results = [];
+
       for (const ans of answers) {
-        if (!ans.correct) {
-          await addPoints("نقطة", ans.user, groupId, 1);
+        let points = 0;
+        if (ans.correct) {
+          points = firstCorrectGiven ? 2 : 3;
+          firstCorrectGiven = true;
+        } else if (firstCorrectGiven) {
+          points = 1;
         }
+        await addPoints("نقطة", ans.user, groupId, points);
+
+        const user = await api.subscriber().getById(ans.user);
+        const name = user?.nickname || "مشارك";
+        results.push(`${name}: ${points} نقطة${ans.correct ? " ✅" : ""}`);
       }
 
-      api.messaging().sendGroupMessage(groupId, `✅ انتهت الجولة! الكلمة: ${gameData.currentGame.word}`);
-      gameData.currentGame.active = false;
-      gameData.currentGame.resetAnswers();
+      api.messaging().sendGroupMessage(groupId, `🎯 النتائج:\n${results.join("\n")}`);
 
-      // بدء جولة جديدة تلقائيًا
+      gameData.currentGame.answers = [];
+
+      // بدء جولة جديدة بعد انتهاء الحالية
       startGame(groupId);
 
     } else {
-      // لم تكن هناك إجابات صحيحة
       api.messaging().sendGroupMessage(groupId, `⏰ انتهت الجولة بدون أي إجابات صحيحة! الكلمة: ${gameData.currentGame.word}`);
-      gameData.currentGame.active = false;
-      gameData.currentGame.resetAnswers();
+      gameData.currentGame.answers = [];
     }
   }, 10000);
 
-  // عرض الكلمة بدون نقاط/همزات
   const masked = removeDotsAndHamza(word);
   api.messaging().sendGroupMessage(groupId, `🎮 كلمة جديدة: ${masked} (لديك 10 ثواني)`);
 }
@@ -124,16 +140,13 @@ api.on("groupMessage", async (msg) => {
   const gameData = gameManager.getGame(groupId);
   const game = gameData.currentGame;
 
-  // بدء لعبة
   if (content === "!نقطة") return startGame(groupId);
 
-  // عرض مجموع النقاط
   if (content === "!نقطة مجموعي") {
     const pts = await getPoints("نقطة", msg.sourceSubscriberId, groupId);
     return api.messaging().sendGroupMessage(groupId, `📊 نقاطك في نقطة: ${pts}`);
   }
 
-  // أوامر المساعدة
   if (content === "!نقطة مساعدة") {
     return api.messaging().sendGroupMessage(groupId,
 `🎮 أوامر نقطة بوت:
@@ -142,28 +155,48 @@ api.on("groupMessage", async (msg) => {
 !نقطة مساعدة - عرض هذه الرسالة`);
   }
 
-  // التحقق من الإجابة
   if (game && game.active) {
     const normalizedInput = normalizeWord(content);
     const normalizedWord = normalizeWord(game.word);
 
+    game.answers.push({ user: msg.sourceSubscriberId, correct: normalizedInput === normalizedWord });
+
+    // أول إجابة صحيحة توقف استقبال الإجابات مؤقتًا
     if (normalizedInput === normalizedWord) {
-      const isFirstCorrect = !game.answers.some(a => a.correct);
+      const firstCorrectExists = game.answers.some(a => a.correct && a.user !== msg.sourceSubscriberId);
+      if (!firstCorrectExists) {
+        game.active = false;
 
-      if (isFirstCorrect) {
-        await addPoints("نقطة", msg.sourceSubscriberId, groupId, 3);
-      } else {
-        await addPoints("نقطة", msg.sourceSubscriberId, groupId, 2);
+        // إلغاء أي مؤقت سابق لتجنب التكرار
+        if (game.timeout) clearTimeout(game.timeout);
+
+        game.timeout = setTimeout(async () => {
+          const answers = game.answers;
+          let firstCorrectGiven = false;
+          const results = [];
+
+          for (const ans of answers) {
+            let points = 0;
+            if (ans.correct) {
+              points = firstCorrectGiven ? 2 : 3;
+              firstCorrectGiven = true;
+            } else if (firstCorrectGiven) {
+              points = 1;
+            }
+            await addPoints("نقطة", ans.user, groupId, points);
+
+            const user = await api.subscriber().getById(ans.user);
+            const name = user?.nickname || "مشارك";
+            results.push(`${name}: ${points} نقطة${ans.correct ? " ✅" : ""}`);
+          }
+
+          api.messaging().sendGroupMessage(groupId, `🎯 النتائج:\n${results.join("\n")}`);
+
+          // بدء جولة جديدة بعد انتهاء الحالية
+          startGame(groupId);
+
+        }, 3000); // تأخير 3 ثواني
       }
-
-      game.answers.push({ user: msg.sourceSubscriberId, correct: true });
-
-      const winner = await api.subscriber().getById(msg.sourceSubscriberId);
-      const winnerName = winner?.nickname || "مشارك";
-
-      api.messaging().sendGroupMessage(groupId, `🏆 ${winnerName} أجاب بشكل صحيح: ${game.word}`);
-    } else {
-      game.answers.push({ user: msg.sourceSubscriberId, correct: false });
     }
   }
 });
@@ -173,5 +206,4 @@ const app = express();
 app.get("/", (req, res) => res.send("✅ Noqta Bot يعمل"));
 app.listen(process.env.PORT || 3000);
 
-// تسجيل الدخول
 api.login(process.env.WOLF_EMAIL, process.env.WOLF_PASSWORD);
