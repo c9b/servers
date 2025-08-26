@@ -9,14 +9,25 @@ function arabicToEnglishNums(str) {
   return str.replace(/[٠-٩]/g, d => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)]);
 }
 
-// دالة تشيل النقاط والهمزات
+// دالة تشيل الفروقات (همزات/تا مربوطة...) لتسهيل المقارنة
+function normalizeWord(str) {
+  return arabicToEnglishNums(
+    (str || "")
+      .replace(/[أإآ]/g, "ا")
+      .replace(/ة/g, "ه")
+      .replace(/ى/g, "ي")
+      .replace(/ؤ/g, "و")
+      .replace(/ئ/g, "ي")
+      .trim()
+  );
+}
+
+// دالة تشيل النقاط والهمزات للعرض فقط
 function removeDotsAndHamza(str) {
   return str
-    // إزالة الهمزات
     .replace(/[أإآءؤئ]/g, "ا")
     .replace(/ى/g, "ي")
     .replace(/ة/g, "ه")
-    // تحويل الأحرف المنقوطة إلى ما يشبهها بلا نقاط
     .replace(/[بپ]/g, "ٮ")
     .replace(/[تث]/g, "ٮٮ")
     .replace(/ج/g, "ح")
@@ -106,8 +117,7 @@ api.on("groupMessage", async (msg) => {
 
   // التحقق من الإجابة
   if (game && game.active) {
-    const normalized = arabicToEnglishNums(content);
-    if (normalized === game.word) {
+    if (normalizeWord(content) === normalizeWord(game.word)) {
       clearTimeout(game.timeout);
       await addPoints("نقطة", msg.sourceSubscriberId, groupId, 1);
       const winner = await api.subscriber().getById(msg.sourceSubscriberId);
