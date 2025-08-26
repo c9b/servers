@@ -48,12 +48,17 @@ function removeDotsAndHamza(str) {
 class Game {
   constructor(words) {
     this.remainingWords = [...words];
-    this.active = false;
+    this.currentGame = null;
   }
+
   getRandomWord() {
     if (this.remainingWords.length === 0) this.remainingWords = [...words];
     const i = Math.floor(Math.random() * this.remainingWords.length);
     return this.remainingWords.splice(i, 1)[0];
+  }
+
+  resetAnswers() {
+    if (this.currentGame) this.currentGame.answers = [];
   }
 }
 
@@ -77,12 +82,34 @@ api.on("ready", () => console.log("✅ Noqta Bot جاهز"));
 function startGame(groupId) {
   const gameData = gameManager.getGame(groupId);
   const word = gameData.getRandomWord();
-  gameData.currentGame = { word, active: true };
+  gameData.currentGame = { word, active: true, answers: [] };
 
   // مؤقت انتهاء الجولة
-  gameData.currentGame.timeout = setTimeout(() => {
-    gameData.currentGame.active = false;
-    api.messaging().sendGroupMessage(groupId, `⏰ انتهت الجولة! الكلمة: ${word}`);
+  gameData.currentGame.timeout = setTimeout(async () => {
+    const answers = gameData.currentGame.answers;
+    const hasCorrect = answers.some(a => a.correct);
+
+    if (hasCorrect) {
+      // توزيع نقاط لمن أخطأ
+      for (const ans of answers) {
+        if (!ans.correct) {
+          await addPoints("نقطة", ans.user, groupId, 1);
+        }
+      }
+
+      api.messaging().sendGroupMessage(groupId, `✅ انتهت الجولة! الكلمة: ${gameData.currentGame.word}`);
+      gameData.currentGame.active = false;
+      gameData.currentGame.resetAnswers();
+
+      // بدء جولة جديدة تلقائيًا
+      startGame(groupId);
+
+    } else {
+      // لم تكن هناك إجابات صحيحة
+      api.messaging().sendGroupMessage(groupId, `⏰ انتهت الجولة بدون أي إجابات صحيحة! الكلمة: ${gameData.currentGame.word}`);
+      gameData.currentGame.active = false;
+      gameData.currentGame.resetAnswers();
+    }
   }, 10000);
 
   // عرض الكلمة بدون نقاط/همزات
@@ -98,7 +125,7 @@ api.on("groupMessage", async (msg) => {
   const game = gameData.currentGame;
 
   // بدء لعبة
-  if (content === "!نقطة") startGame(groupId);
+  if (content === "!نقطة") return startGame(groupId);
 
   // عرض مجموع النقاط
   if (content === "!نقطة مجموعي") {
@@ -117,13 +144,26 @@ api.on("groupMessage", async (msg) => {
 
   // التحقق من الإجابة
   if (game && game.active) {
-    if (normalizeWord(content) === normalizeWord(game.word)) {
-      clearTimeout(game.timeout);
-      await addPoints("نقطة", msg.sourceSubscriberId, groupId, 1);
+    const normalizedInput = normalizeWord(content);
+    const normalizedWord = normalizeWord(game.word);
+
+    if (normalizedInput === normalizedWord) {
+      const isFirstCorrect = !game.answers.some(a => a.correct);
+
+      if (isFirstCorrect) {
+        await addPoints("نقطة", msg.sourceSubscriberId, groupId, 3);
+      } else {
+        await addPoints("نقطة", msg.sourceSubscriberId, groupId, 2);
+      }
+
+      game.answers.push({ user: msg.sourceSubscriberId, correct: true });
+
       const winner = await api.subscriber().getById(msg.sourceSubscriberId);
       const winnerName = winner?.nickname || "مشارك";
-      api.messaging().sendGroupMessage(groupId, `🏆 مبروك ${winnerName}! الإجابة صحيحة: ${game.word}`);
-      game.active = false;
+
+      api.messaging().sendGroupMessage(groupId, `🏆 ${winnerName} أجاب بشكل صحيح: ${game.word}`);
+    } else {
+      game.answers.push({ user: msg.sourceSubscriberId, correct: false });
     }
   }
 });
