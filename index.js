@@ -25,8 +25,8 @@ function startGame(groupId){
   gameData.currentGame.timeout=setTimeout(()=>{
     gameData.currentGame.active=false;
     api.messaging().sendGroupMessage(groupId,`⏰ انتهت الجولة! الكلمة: ${word}`);
-  },30000);
-  api.messaging().sendGroupMessage(groupId,`🎮 كلمة جديدة: ${word} (لديك 30 ثانية)`);
+  },10000);
+  api.messaging().sendGroupMessage(groupId,`🎮 كلمة جديدة: ${word} (لديك 10 ثواني)`);
 }
 
 api.on("groupMessage", async(msg)=>{
