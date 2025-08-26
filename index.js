@@ -75,12 +75,13 @@ const api = new WOLFBot();
 api.on("ready", () => console.log("✅ Noqta Bot جاهز"));
 
 // بدء جولة
-function startGame(groupId) {
+async function startGame(groupId) {
   const gameData = gameManager.getGame(groupId);
 
   // إذا كانت هناك جولة نشطة، لا تبدأ جولة جديدة
   if (gameData.currentGame && gameData.currentGame.active) return;
 
+  // مسح أي مؤقت سابق
   if (gameData.currentGame && gameData.currentGame.timeout) {
     clearTimeout(gameData.currentGame.timeout);
   }
@@ -91,17 +92,15 @@ function startGame(groupId) {
   // مؤقت انتهاء الجولة
   gameData.currentGame.timeout = setTimeout(async () => {
     const answers = gameData.currentGame.answers;
-    const hasCorrect = answers.some(a => a.correct);
-
-    // إيقاف الجولة الحالية
     gameData.currentGame.active = false;
 
-    if (hasCorrect) {
-      // توزيع النقاط
-      let firstCorrectGiven = false;
-      const results = [];
+    const correctAnswers = answers.filter(a => a.correct);
 
-      for (const ans of answers) {
+    if (correctAnswers.length > 0) {
+      let firstCorrectGiven = false;
+
+      // توزيع النقاط بالتوازي
+      await Promise.all(answers.map(async (ans) => {
         let points = 0;
         if (ans.correct) {
           points = firstCorrectGiven ? 2 : 3;
@@ -110,21 +109,22 @@ function startGame(groupId) {
           points = 1;
         }
         await addPoints("نقطة", ans.user, groupId, points);
+      }));
 
+      // تحضير الرسالة
+      const results = await Promise.all(answers.map(async (ans) => {
         const user = await api.subscriber().getById(ans.user);
         const name = user?.nickname || "مشارك";
-        results.push(`${name}: ${points} نقطة${ans.correct ? " ✅" : ""}`);
-      }
+        let points = ans.correct ? (firstCorrectGiven ? 2 : 3) : (firstCorrectGiven ? 1 : 0);
+        return `${name}: ${points} نقطة${ans.correct ? " ✅" : ""}`;
+      }));
 
-      api.messaging().sendGroupMessage(groupId, `🎯 النتائج:\n${results.join("\n")}`);
-
+      await api.messaging().sendGroupMessage(groupId, `🎯 النتائج:\n${results.join("\n")}`);
       gameData.currentGame.answers = [];
-
-      // بدء جولة جديدة بعد انتهاء الحالية
       startGame(groupId);
 
     } else {
-      api.messaging().sendGroupMessage(groupId, `⏰ انتهت الجولة بدون أي إجابات صحيحة! الكلمة: ${gameData.currentGame.word}`);
+      await api.messaging().sendGroupMessage(groupId, `⏰ انتهت الجولة بدون أي إجابات صحيحة! الكلمة: ${gameData.currentGame.word}`);
       gameData.currentGame.answers = [];
     }
   }, 10000);
@@ -159,44 +159,42 @@ api.on("groupMessage", async (msg) => {
     const normalizedInput = normalizeWord(content);
     const normalizedWord = normalizeWord(game.word);
 
-    game.answers.push({ user: msg.sourceSubscriberId, correct: normalizedInput === normalizedWord });
+    // إضافة إجابة المستخدم فقط مرة واحدة
+    if (!game.answers.some(a => a.user === msg.sourceSubscriberId)) {
+      game.answers.push({ user: msg.sourceSubscriberId, correct: normalizedInput === normalizedWord });
+    }
 
-    // أول إجابة صحيحة توقف استقبال الإجابات مؤقتًا
-    if (normalizedInput === normalizedWord) {
-      const firstCorrectExists = game.answers.some(a => a.correct && a.user !== msg.sourceSubscriberId);
-      if (!firstCorrectExists) {
-        game.active = false;
+    // إذا كانت الإجابة صحيحة، إيقاف الجولة مؤقتًا
+    if (normalizedInput === normalizedWord && game.active) {
+      game.active = false;
+      if (game.timeout) clearTimeout(game.timeout);
 
-        // إلغاء أي مؤقت سابق لتجنب التكرار
-        if (game.timeout) clearTimeout(game.timeout);
+      setTimeout(async () => {
+        const answers = game.answers;
+        let firstCorrectGiven = false;
 
-        game.timeout = setTimeout(async () => {
-          const answers = game.answers;
-          let firstCorrectGiven = false;
-          const results = [];
-
-          for (const ans of answers) {
-            let points = 0;
-            if (ans.correct) {
-              points = firstCorrectGiven ? 2 : 3;
-              firstCorrectGiven = true;
-            } else if (firstCorrectGiven) {
-              points = 1;
-            }
-            await addPoints("نقطة", ans.user, groupId, points);
-
-            const user = await api.subscriber().getById(ans.user);
-            const name = user?.nickname || "مشارك";
-            results.push(`${name}: ${points} نقطة${ans.correct ? " ✅" : ""}`);
+        // توزيع النقاط بالتوازي
+        await Promise.all(answers.map(async (ans) => {
+          let points = 0;
+          if (ans.correct) {
+            points = firstCorrectGiven ? 2 : 3;
+            firstCorrectGiven = true;
+          } else if (firstCorrectGiven) {
+            points = 1;
           }
+          await addPoints("نقطة", ans.user, groupId, points);
+        }));
 
-          api.messaging().sendGroupMessage(groupId, `🎯 النتائج:\n${results.join("\n")}`);
+        const results = await Promise.all(answers.map(async (ans) => {
+          const user = await api.subscriber().getById(ans.user);
+          const name = user?.nickname || "مشارك";
+          let points = ans.correct ? (firstCorrectGiven ? 2 : 3) : (firstCorrectGiven ? 1 : 0);
+          return `${name}: ${points} نقطة${ans.correct ? " ✅" : ""}`;
+        }));
 
-          // بدء جولة جديدة بعد انتهاء الحالية
-          startGame(groupId);
-
-        }, 3000); // تأخير 3 ثواني
-      }
+        await api.messaging().sendGroupMessage(groupId, `🎯 النتائج:\n${results.join("\n")}`);
+        startGame(groupId);
+      }, 3000);
     }
   }
 });
